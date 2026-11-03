@@ -243,12 +243,13 @@ def run_cli():
 
 
 def run_server():
+    port = int(os.environ.get("PORT", 5000))
     print("==================================================")
     print("[*] GenTalk Backend Server starting...")
-    print("[+] Website URL: http://localhost:5000")
-    print("[+] API endpoint: http://localhost:5000/api/chat")
+    print(f"[+] Website URL: http://localhost:{port}")
+    print(f"[+] API endpoint: http://localhost:{port}/api/chat")
     print("==================================================")
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=False)
 
 
 if __name__ == "__main__":
