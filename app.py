@@ -48,19 +48,25 @@ def load_env_file():
 
 load_env_file()
 
-API_KEY = (
-    os.getenv("GEMINI_API_KEY")
-    or os.getenv("API_KEY")
-    or os.getenv("API_key")
-)
+client = None
 
-if not API_KEY:
-    raise SystemExit(
-        "GEMINI_API_KEY is not set. Add it to .env or environment:\n"
-        "$env:GEMINI_API_KEY='your_key_here'"
+
+def get_client():
+    global client
+    if client is not None:
+        return client
+    api_key = (
+        os.getenv("GEMINI_API_KEY")
+        or os.getenv("API_KEY")
+        or os.getenv("API_key")
     )
+    if not api_key:
+        raise ValueError(
+            "GEMINI_API_KEY is not set. Add it in Vercel / Environment Variables."
+        )
+    client = genai.Client(api_key=api_key)
+    return client
 
-client = genai.Client(api_key=API_KEY)
 
 # Active Gemini models with verified availability and quotas
 MODELS = [
@@ -90,10 +96,11 @@ def extract_text_from_response(response):
 
 
 def generate_with_fallback(contents):
+    ai_client = get_client()
     last_error = None
     for model_name in MODELS:
         try:
-            response = client.models.generate_content(
+            response = ai_client.models.generate_content(
                 model=model_name,
                 contents=contents,
             )
