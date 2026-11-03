@@ -149,6 +149,7 @@ def serve_frontend(path):
 
 
 @app.route("/api/health", methods=["GET"])
+@app.route("/health", methods=["GET"])
 def health():
     return jsonify({
         "status": "ok",
@@ -157,6 +158,7 @@ def health():
 
 
 @app.route("/api/chat", methods=["POST"])
+@app.route("/chat", methods=["POST"])
 def chat():
     data = request.get_json(silent=True) or {}
 
