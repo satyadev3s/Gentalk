@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import base64
 from pathlib import Path
 
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
@@ -70,10 +71,10 @@ def get_client():
 
 # Active Gemini models with verified availability and quotas
 MODELS = [
-    "gemini-3.5-flash-lite",
     "gemini-3.5-flash",
-    "gemini-flash-lite-latest",
     "gemini-3.8-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-lite-latest",
 ]
 
 
@@ -164,16 +165,45 @@ def chat():
 
     raw_messages = data.get("messages")
     prompt = data.get("message") or data.get("prompt")
+    top_image_b64 = data.get("image")
+    top_mime_type = data.get("mime_type") or "image/jpeg"
 
     formatted_contents = []
 
+    def make_image_part(b64_str, mime="image/jpeg"):
+        if not b64_str:
+            return None
+        if "," in b64_str:
+            b64_str = b64_str.split(",", 1)[1]
+        try:
+            raw_bytes = base64.b64decode(b64_str)
+            return types.Part.from_bytes(data=raw_bytes, mime_type=mime)
+        except Exception:
+            return None
+
     if raw_messages and isinstance(raw_messages, list):
-        for msg in raw_messages:
+        for idx, msg in enumerate(raw_messages):
             if not isinstance(msg, dict):
                 continue
             role = msg.get("role", "user")
             if role not in ("user", "model"):
                 role = "user"
+
+            parts_list = []
+
+            # Handle attached image for this message
+            msg_image = msg.get("image")
+            msg_mime = msg.get("mime_type") or top_mime_type or "image/jpeg"
+
+            # If top-level image was passed and this is the latest message
+            if idx == len(raw_messages) - 1 and top_image_b64 and not msg_image:
+                msg_image = top_image_b64
+                msg_mime = top_mime_type
+
+            if msg_image and role == "user":
+                img_part = make_image_part(msg_image, msg_mime)
+                if img_part:
+                    parts_list.append(img_part)
 
             parts = msg.get("parts", [])
             text_parts = []
@@ -188,18 +218,31 @@ def chat():
 
             combined_text = "\n".join(text_parts).strip()
             if combined_text:
+                parts_list.append(types.Part.from_text(text=combined_text))
+            elif parts_list and not combined_text:
+                parts_list.append(types.Part.from_text(text="Please analyze and describe this image."))
+
+            if parts_list:
                 formatted_contents.append(
                     types.Content(
                         role=role,
-                        parts=[types.Part.from_text(text=combined_text)],
+                        parts=parts_list,
                     )
                 )
 
-    elif prompt:
+    elif prompt or top_image_b64:
+        parts_list = []
+        if top_image_b64:
+            img_part = make_image_part(top_image_b64, top_mime_type)
+            if img_part:
+                parts_list.append(img_part)
+        text_str = str(prompt).strip() if prompt else "Please analyze and describe this image."
+        parts_list.append(types.Part.from_text(text=text_str))
+
         formatted_contents = [
             types.Content(
                 role="user",
-                parts=[types.Part.from_text(text=str(prompt))],
+                parts=parts_list,
             )
         ]
 
